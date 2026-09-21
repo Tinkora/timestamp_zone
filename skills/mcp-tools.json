@@ -1,0 +1,78 @@
+{
+  "name": "timestamp_zone",
+  "version": "0.1.0",
+  "description": "Browser-native Unix timestamp ↔ ISO 8601 ↔ multi-timezone converter. All computation in WASM. Privacy-first.",
+  "tools": [
+    {
+      "name": "convert_unix_timestamp",
+      "description": "Convert a Unix timestamp (seconds or milliseconds, auto-detected) to multiple formats including ISO 8601, RFC 2822, RFC 3339, and optional custom strftime format. Optionally convert to a target timezone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "unix_value": {
+            "type": "number",
+            "description": "Unix timestamp value. Auto-detected as seconds or milliseconds (> 10000000000000 is treated as ms)."
+          },
+          "timezone_offset_hours": {
+            "type": "integer",
+            "description": "Target timezone offset hours (e.g. 8 for Asia/Shanghai)."
+          },
+          "timezone_offset_minutes": {
+            "type": "integer",
+            "default": 0,
+            "description": "Target timezone offset minutes (e.g. 30 for Asia/Kolkata)."
+          },
+          "format": {
+            "type": "string",
+            "description": "Custom strftime format string (e.g. '%Y-%m-%d %H:%M:%S')."
+          }
+        },
+        "required": ["unix_value"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "convert_iso8601",
+      "description": "Convert an ISO 8601 time string to Unix timestamps (seconds and milliseconds). Supports formats like '2026-08-06T16:30:00Z', '2026-08-06T16:30:00+08:00', '2026-08-06T16:30:00', and '2026-08-06'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "iso_string": {
+            "type": "string",
+            "description": "ISO 8601 formatted time string."
+          }
+        },
+        "required": ["iso_string"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_common_timezones",
+      "description": "Get a list of common timezone definitions including name, UTC offset hours/minutes, and abbreviation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "calculate_duration",
+      "description": "Calculate the precise duration between two Unix timestamps (in seconds). Returns total seconds, days/hours/minutes/seconds breakdown, and a human-readable string.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from_unix": {
+            "type": "number",
+            "description": "Starting Unix timestamp in seconds."
+          },
+          "to_unix": {
+            "type": "number",
+            "description": "Ending Unix timestamp in seconds."
+          }
+        },
+        "required": ["from_unix", "to_unix"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

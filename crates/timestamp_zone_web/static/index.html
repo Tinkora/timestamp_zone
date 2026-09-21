@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="浏览器原生 Unix 时间戳 ↔ ISO 8601 ↔ 多时区转换工具。所有计算在 WASM 中完成，隐私优先。">
+<title>timestamp_zone — 时间戳转换器</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181b24;
+    --surface2: #21252f;
+    --border: #2d3340;
+    --text: #d2d6e0;
+    --text-dim: #7d8390;
+    --accent: #5b8def;
+    --accent-hover: #7aa2f5;
+    --green: #6bcb77;
+    --green-bg: rgba(107,203,119,0.12);
+    --red: #f0656e;
+    --yellow: #f0c060;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header .badge {
+    font-size: 11px;
+    background: var(--accent);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: .5px;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin-bottom: 14px;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row.gap-sm { gap: 6px; }
+  .grow { flex: 1; }
+  input, select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(91,141,239,0.15);
+  }
+  input { width: 100%; }
+  select { cursor: pointer; min-width: 180px; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, transform .08s;
+    white-space: nowrap;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:active { transform: scale(.97); }
+  button.copy {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  button.copy:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+  button.copy.copied { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+  .output-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .output-item:last-child { border-bottom: none; }
+  .output-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .output-value {
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: var(--text);
+    word-break: break-all;
+    flex: 1;
+  }
+  .error-msg {
+    color: var(--red);
+    font-size: 13px;
+    padding: 6px 0;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .now-btn {
+    background: var(--green);
+    font-size: 14px;
+    padding: 10px 24px;
+  }
+  .now-btn:hover { background: #5ab868; }
+  .tz-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .tz-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: all .15s;
+  }
+  .tz-chip:hover { border-color: var(--accent); background: rgba(91,141,239,0.08); }
+  .tz-chip.selected { border-color: var(--accent); background: rgba(91,141,239,0.15); }
+  .tz-chip .tz-name { font-weight: 600; color: var(--text); }
+  .tz-chip .tz-offset { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+  .section-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+  @media (max-width: 640px) {
+    .container { padding: 12px 8px 32px; }
+    .card { padding: 14px 16px; }
+    .row { flex-direction: column; align-items: stretch; }
+    .output-label { min-width: 64px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🕐 timestamp_zone</h1>
+  <span class="badge">WASM</span>
+  <span style="font-size:12px;color:var(--text-dim);margin-left:auto;">隐私优先 · 全本地计算</span>
+</div>
+
+<div class="container">
+
+  <!-- 当前时间 -->
+  <div class="card">
+    <div class="card-title">⚡ 当前时间</div>
+    <div class="row">
+      <button class="now-btn" id="btn-now">📍 现在</button>
+      <span class="hint" style="margin-left:8px;">获取当前时间的所有格式输出</span>
+    </div>
+    <div id="now-output" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Unix → 多格式 -->
+  <div class="card">
+    <div class="card-title">🔢 Unix 时间戳 → 多格式</div>
+    <div class="row">
+      <input type="number" id="unix-input" placeholder="输入 Unix 时间戳（秒或毫秒自动识别）" class="grow">
+      <button id="btn-unix-convert">转换</button>
+    </div>
+    <div class="hint">自动识别：值 &gt; 10,000,000,000,000 视为毫秒，否则视为秒</div>
+    <div id="unix-output" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- ISO 8601 → Unix -->
+  <div class="card">
+    <div class="card-title">📅 ISO 8601 → Unix 时间戳</div>
+    <div class="row">
+      <input type="text" id="iso-input" placeholder="例如：2026-08-06T16:30:00Z" class="grow">
+      <button id="btn-iso-convert">转换</button>
+    </div>
+    <div class="hint">支持：RFC 3339（带 Z 或偏移）、纯日期时间、仅日期</div>
+    <div id="iso-output" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- 时区转换 -->
+  <div class="card">
+    <div class="card-title">🌍 时区转换</div>
+    <div class="row">
+      <input type="number" id="tz-unix-input" placeholder="Unix 时间戳（秒）" class="grow" style="max-width:260px;">
+      <span style="font-size:13px;color:var(--text-dim);">→</span>
+      <select id="tz-select"></select>
+      <button id="btn-tz-convert">转换</button>
+    </div>
+    <div class="hint">从下方常用时区选择，或选择后自动转换</div>
+    <div class="tz-grid" id="tz-grid"></div>
+    <div id="tz-output" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- 时长计算 -->
+  <div class="card">
+    <div class="card-title">⏱️ 时长计算</div>
+    <div class="row">
+      <input type="number" id="dur-from" placeholder="起始 Unix 时间戳（秒）" class="grow">
+      <span style="color:var(--text-dim);">→</span>
+      <input type="number" id="dur-to" placeholder="结束 Unix 时间戳（秒）" class="grow">
+      <button id="btn-dur-calc">计算</button>
+    </div>
+    <div id="dur-output" style="margin-top:12px;"></div>
+  </div>
+
+</div>
+
+<script type="module">
+import init, {
+  now_unix, now_unix_ms,
+  unix_to_formats, unix_to_iso8601,
+  iso8601_to_unix,
+  format_rfc2822, format_rfc3339, format_custom,
+  unix_to_timezone,
+  duration_between,
+  common_timezones,
+} from './pkg/timestamp_zone_web.js';
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function renderOutput(containerId, items) {
+  const el = document.getElementById(containerId);
+  if (!items || items.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = items.map(([label, value]) => `
+    <div class="output-item">
+      <span class="output-label">${label}</span>
+      <span class="output-value">${value}</span>
+      <button class="copy" data-value="${escapeAttr(value)}">复制</button>
+    </div>
+  `).join('');
+  // Attach copy handlers
+  el.querySelectorAll('button.copy').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const v = btn.dataset.value;
+      try {
+        await navigator.clipboard.writeText(v);
+        btn.textContent = '已复制 ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 1800);
+      } catch {
+        btn.textContent = '失败';
+        setTimeout(() => { btn.textContent = '复制'; }, 1200);
+      }
+    });
+  });
+}
+
+function renderError(containerId, msg) {
+  document.getElementById(containerId).innerHTML = `<div class="error-msg">⚠ ${escapeHtml(msg)}</div>`;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── "现在" 按钮 ──────────────────────────────────────────────
+
+document.getElementById('btn-now').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-now');
+  btn.textContent = '⏳ 获取中…';
+  btn.disabled = true;
+  try {
+    const secs = now_unix();
+    const ms = now_unix_ms();
+    const fmts = await unix_to_formats(secs);
+    renderOutput('now-output', [
+      ['Unix 秒', String(secs)],
+      ['Unix 毫秒', String(ms)],
+      ['ISO 8601', fmts.iso8601],
+      ['RFC 2822', fmts.rfc2822],
+      ['RFC 3339', fmts.rfc3339],
+    ]);
+  } catch (e) {
+    renderError('now-output', String(e));
+  }
+  btn.textContent = '📍 现在';
+  btn.disabled = false;
+});
+
+// ── Unix → 多格式 ────────────────────────────────────────────
+
+document.getElementById('btn-unix-convert').addEventListener('click', async () => {
+  const val = parseInt(document.getElementById('unix-input').value, 10);
+  if (isNaN(val)) { renderError('unix-output', '请输入有效的 Unix 时间戳'); return; }
+  try {
+    const fmts = await unix_to_formats(val);
+    const items = [
+      ['输入值', String(val)],
+      ['类型', fmts.was_ms ? '毫秒（已自动转换）' : '秒'],
+      ['Unix 秒', String(fmts.unix_seconds)],
+      ['Unix 毫秒', String(fmts.unix_ms)],
+      ['ISO 8601', fmts.iso8601],
+      ['RFC 2822', fmts.rfc2822],
+      ['RFC 3339', fmts.rfc3339],
+    ];
+    renderOutput('unix-output', items);
+  } catch (e) {
+    renderError('unix-output', String(e));
+  }
+});
+
+// Allow Enter key
+document.getElementById('unix-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-unix-convert').click();
+});
+
+// ── ISO 8601 → Unix ──────────────────────────────────────────
+
+document.getElementById('btn-iso-convert').addEventListener('click', async () => {
+  const val = document.getElementById('iso-input').value.trim();
+  if (!val) { renderError('iso-output', '请输入 ISO 8601 时间字符串'); return; }
+  try {
+    const result = await iso8601_to_unix(val);
+    renderOutput('iso-output', [
+      ['输入', val],
+      ['Unix 秒', String(result.unix_seconds)],
+      ['Unix 毫秒', String(result.unix_ms)],
+    ]);
+  } catch (e) {
+    renderError('iso-output', String(e));
+  }
+});
+
+document.getElementById('iso-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-iso-convert').click();
+});
+
+// ── 时区转换 ─────────────────────────────────────────────────
+
+let timezones = [];
+
+function renderTzGrid(selectedName) {
+  const grid = document.getElementById('tz-grid');
+  grid.innerHTML = timezones.map(tz => {
+    const sel = tz.name === selectedName ? ' selected' : '';
+    const sign = tz.offset_hours >= 0 ? '+' : '';
+    const offset = `${sign}${tz.offset_hours}${tz.offset_minutes ? ':' + String(tz.offset_minutes).padStart(2,'0') : ''}`;
+    return `<div class="tz-chip${sel}" data-name="${escapeAttr(tz.name)}">
+      <div class="tz-name">${escapeHtml(tz.name)}</div>
+      <div class="tz-offset">UTC${offset} · ${escapeHtml(tz.abbr)}</div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.tz-chip').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      grid.querySelectorAll('.tz-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      const name = chip.dataset.name;
+      document.getElementById('tz-select').value = name;
+      await doTzConvert(name);
+    });
+  });
+}
+
+function populateTzSelect(selectedName) {
+  const sel = document.getElementById('tz-select');
+  sel.innerHTML = timezones.map(tz =>
+    `<option value="${escapeAttr(tz.name)}"${tz.name === selectedName ? ' selected' : ''}>${escapeHtml(tz.name)} (UTC${tz.offset_hours>=0?'+':''}${tz.offset_hours}${tz.offset_minutes?':'+String(tz.offset_minutes).padStart(2,'0'):''})</option>`
+  ).join('');
+}
+
+async function doTzConvert(tzName) {
+  const val = parseInt(document.getElementById('tz-unix-input').value, 10);
+  if (isNaN(val)) {
+    // Use current time
+    const secs = now_unix();
+    document.getElementById('tz-unix-input').value = secs;
+    await doTzConvertWith(tzName, secs);
+    return;
+  }
+  await doTzConvertWith(tzName, val);
+}
+
+async function doTzConvertWith(tzName, unixSecs) {
+  const tz = timezones.find(t => t.name === tzName);
+  if (!tz) return;
+  try {
+    const local = await unix_to_timezone(unixSecs, tz.offset_hours, tz.offset_minutes);
+    const utc = await unix_to_iso8601(unixSecs);
+    renderOutput('tz-output', [
+      ['Unix 输入', String(unixSecs)],
+      ['UTC 时间', utc],
+      ['目标时区', tzName],
+      ['当地时间', local],
+    ]);
+  } catch (e) {
+    renderError('tz-output', String(e));
+  }
+}
+
+document.getElementById('btn-tz-convert').addEventListener('click', async () => {
+  const tzName = document.getElementById('tz-select').value;
+  if (!tzName) { renderError('tz-output', '请选择时区'); return; }
+  await doTzConvert(tzName);
+});
+
+document.getElementById('tz-select').addEventListener('change', async () => {
+  const tzName = document.getElementById('tz-select').value;
+  renderTzGrid(tzName);
+  if (document.getElementById('tz-unix-input').value || true) {
+    await doTzConvert(tzName);
+  }
+});
+
+document.getElementById('tz-unix-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-tz-convert').click();
+});
+
+// ── 时长计算 ─────────────────────────────────────────────────
+
+document.getElementById('btn-dur-calc').addEventListener('click', async () => {
+  const from = parseInt(document.getElementById('dur-from').value, 10);
+  const to = parseInt(document.getElementById('dur-to').value, 10);
+  if (isNaN(from) || isNaN(to)) { renderError('dur-output', '请输入两个有效的 Unix 时间戳（秒）'); return; }
+  try {
+    const d = await duration_between(from, to);
+    renderOutput('dur-output', [
+      ['总秒数', String(d.total_seconds)],
+      ['天数', String(d.days)],
+      ['小时', String(d.hours)],
+      ['分钟', String(d.minutes)],
+      ['秒', String(d.seconds)],
+      ['可读格式', d.human_readable],
+    ]);
+  } catch (e) {
+    renderError('dur-output', String(e));
+  }
+});
+
+['dur-from', 'dur-to'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('btn-dur-calc').click();
+  });
+});
+
+// ── Init ─────────────────────────────────────────────────────
+
+await init();
+timezones = await common_timezones();
+populateTzSelect('Asia/Shanghai');
+renderTzGrid('Asia/Shanghai');
+// Auto-trigger "now"
+document.getElementById('btn-now').click();
+</script>
+<footer style="padding:10px 16px;text-align:center;color:var(--text-muted, #94a3b8);font-size:12px;line-height:1.4;">timestamp_zone by Tinkora</footer>
+</body>
+</html>

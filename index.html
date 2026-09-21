@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="浏览器原生 Unix 时间戳 ↔ ISO 8601 ↔ 多时区转换工具。所有计算在 WASM 中完成，隐私优先。">
+<title>timestamp_zone — 时间戳转换器</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #181b24; --surface2: #21252f;
+    --border: #2d3340; --text: #d2d6e0; --text-dim: #7d8390;
+    --accent: #5b8def; --accent-hover: #7aa2f5;
+    --green: #6bcb77; --radius: 10px; --radius-sm: 6px;
+    --shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+  .hero {
+    text-align: center; padding: 80px 24px 60px;
+    background: linear-gradient(180deg, #1a1f2e 0%, var(--bg) 100%);
+  }
+  .hero h1 { font-size: 42px; font-weight: 800; margin-bottom: 16px; letter-spacing: -1px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { font-size: 18px; color: var(--text-dim); max-width: 640px; margin: 0 auto 32px; }
+  .hero .badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .hero .badge {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 16px; font-size: 13px; color: var(--text-dim);
+  }
+  .hero .badge.wasm { border-color: var(--accent); color: var(--accent); }
+  .hero .cta {
+    margin-top: 32px;
+  }
+  .hero .cta a {
+    display: inline-block; background: var(--accent); color: #fff;
+    padding: 14px 36px; border-radius: var(--radius-sm);
+    font-size: 16px; font-weight: 700; text-decoration: none;
+    transition: background .15s;
+  }
+  .hero .cta a:hover { background: var(--accent-hover); }
+  .features {
+    max-width: 960px; margin: 0 auto; padding: 48px 24px 64px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .feature {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+  }
+  .feature .icon { font-size: 28px; margin-bottom: 12px; }
+  .feature h3 { font-size: 16px; margin-bottom: 8px; }
+  .feature p { font-size: 13px; color: var(--text-dim); }
+  .footer {
+    text-align: center; padding: 32px 24px;
+    border-top: 1px solid var(--border); font-size: 13px; color: var(--text-dim);
+  }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🕐 <span>timestamp</span>_zone</h1>
+  <p>浏览器原生的 Unix 时间戳 ↔ ISO 8601 ↔ 多时区转换工具。<br>所有计算在 WASM 中完成，隐私优先。</p>
+  <div class="badges">
+    <span class="badge wasm">⚡ WASM 原生</span>
+    <span class="badge">🔒 零网络请求</span>
+    <span class="badge">🌍 16 个常用时区</span>
+    <span class="badge">📋 一键复制</span>
+  </div>
+  <div class="cta">
+    <a href="crates/timestamp_zone_web/static/">🚀 打开转换器</a>
+  </div>
+</div>
+
+<div class="features">
+  <div class="feature">
+    <div class="icon">🔢</div>
+    <h3>Unix → 多格式</h3>
+    <p>输入秒或毫秒，自动识别并转换为 ISO 8601、RFC 2822、RFC 3339 等标准格式。</p>
+  </div>
+  <div class="feature">
+    <div class="icon">📅</div>
+    <h3>ISO 8601 → Unix</h3>
+    <p>支持 RFC 3339、带时区偏移、纯日期时间、仅日期等多种 ISO 8601 格式。</p>
+  </div>
+  <div class="feature">
+    <div class="icon">🌍</div>
+    <h3>多时区转换</h3>
+    <p>内置 16 个常用时区，支持 UTC、美东、伦敦、上海、东京等，一键切换。</p>
+  </div>
+  <div class="feature">
+    <div class="icon">⏱️</div>
+    <h3>时长计算</h3>
+    <p>两个时间戳之间的精确时长，自动分解为天/时/分/秒，并生成人类可读字符串。</p>
+  </div>
+  <div class="feature">
+    <div class="icon">🔒</div>
+    <h3>隐私优先</h3>
+    <p>所有计算在浏览器 WASM 中完成，零网络请求，时间戳和时区查询绝不离开你的设备。</p>
+  </div>
+  <div class="feature">
+    <div class="icon">📋</div>
+    <h3>一键复制</h3>
+    <p>每个输出都配有复制按钮，一键复制到剪贴板，方便粘贴到日志、代码或聊天中。</p>
+  </div>
+</div>
+
+<div class="footer">
+  <p>
+    <a href="https://github.com/Tinkora/timestamp_zone">GitHub</a> ·
+    <a href="./LICENSE">MIT License</a> ·
+    <a href="./CONTRIBUTING.md">贡献指南</a>
+  </p>
+  <p style="margin-top:6px;">© 2026 Tinkora</p>
+</div>
+
+</body>
+</html>
